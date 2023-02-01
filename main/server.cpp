@@ -225,7 +225,6 @@ char *status_format_json() {
     // Add a status key to the object
 
     // Write the object to a string
-    cJSON_AddItemToObject(obj, "values", cJSON_CreateIntArray(Server::instance().buf, 256));
     auto val = cJSON_Print(obj);
     // Delete the  object
     cJSON_Delete(obj);
@@ -247,6 +246,21 @@ static void spectrumThread(void *arg) {
 
 }
 
+static void spectrumOffload(void *arg) {
+    auto *instance = (Spectrum *) arg;
+    int buf[BUFFER_SIZE] = {0};
+    while (1) {
+        int offset = instance->size;
+        for (int i = 0; i < BUFFER_SIZE; ++i) {
+            int idx = (i + offset) % BUFFER_SIZE;
+            buf[i] = instance->getBuffer()[idx];
+        }
+        callback(esp_timer_get_time(), buf, BUFFER_SIZE);
+        vTaskDelay(pdMS_TO_TICKS(40));
+    }
+
+}
+
 // Initialize the server object
 Server::Server() {
 
@@ -255,7 +269,8 @@ Server::Server() {
     esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, this);
     s = &Spectrum::instance();
     s->setHandler(callback);
-    xTaskCreate(spectrumThread, "spectrumThread", 4096, s, 1, nullptr);
+    xTaskCreate(spectrumOffload, "spectrumOffload", 8196*2, s, 1, nullptr);
+    xTaskCreate(spectrumThread, "spectrumThread", 2048, s, 2, nullptr);
 
 }
 

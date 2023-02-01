@@ -6,11 +6,16 @@
 #define HAPTIC_SPECTRUM_H
 
 #include <freertos/task.h>
-#include "esp_adc/adc_continuous.h"
 
 #define BUFFER_SIZE 1024
 
 typedef void (*spectrumCallBack)(uint64_t, int*, int);
+
+enum StackSelect {
+    PRIMARY = 0,
+    SECONDARY = 1,
+    EMPTY = 2,
+};
 
 class Spectrum {
 public:
@@ -24,21 +29,40 @@ public:
 
     void init();
 
+    void offload();
+
+    bool primaryFull() {
+        return waiting != EMPTY;
+    };
+
+
+    int *getBuffer();
+
     ~Spectrum() {
         free(buffer);
     }
 
+    int size = 0;
 private:
 
+
+    StackSelect current = PRIMARY;
+
+    StackSelect waiting = EMPTY;
+
     int *buffer = nullptr;
-    int size = 0;
+    int *secondary = nullptr;
     uint64_t begin = 0;
+    uint64_t secondBegin = 0;
 
 
     Spectrum() {
         begin = 0;
+        secondBegin = 0;
         size = 0;
         buffer = static_cast<int *>(malloc(sizeof(int) * BUFFER_SIZE));
+        secondary = static_cast<int *>(malloc(sizeof(int) * BUFFER_SIZE));
+
     }
 
     spectrumCallBack func = nullptr;
@@ -46,8 +70,7 @@ private:
     void overflow(int i);
 
 
-    void setupADC(adc_channel_t *channel, uint8_t channel_num, adc_continuous_handle_t *out_handle);
-
+    void log(uint32_t data);
 };
 
 
